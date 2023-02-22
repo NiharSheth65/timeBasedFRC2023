@@ -10,7 +10,7 @@ public class variables {
 
     // joy stick axises
     int joyStickLeft_AxisY = 1; 
-    int joyStickRight_AxisX = 4;
+    int joyStickRight_AxisX = 5;
 
     // button channels 
     int buttonAChannel = 1; 
@@ -20,8 +20,8 @@ public class variables {
     int buttonLeftChannel = 9;
     int buttonRightChannel = 10;
 
-    // safety 
-
+    // safty shoes 
     double safetyFactor = 0.5; 
-    double turnRate = 0.25; 
+    double turnRate = 0.5; 
+
 }

@@ -62,8 +62,8 @@ public class Robot extends TimedRobot {
   Compressor pcmCompressor = new Compressor(0, PneumaticsModuleType.CTREPCM);
 
   // creating double solonoids
-  DoubleSolenoid gearSolenoid = new DoubleSolenoid(PneumaticsModuleType.CTREPCM, 0, 1);
-  DoubleSolenoid pistonSolenoid = new DoubleSolenoid(PneumaticsModuleType.CTREPCM, 2, 3);
+  DoubleSolenoid gearSolenoid = new DoubleSolenoid(PneumaticsModuleType.CTREPCM, 2, 3);
+//   DoubleSolenoid pistonSolenoid = new DoubleSolenoid(PneumaticsModuleType.CTREPCM, 1, 2);
 
   // intial setpoints
   private double LeftMotor_Setpoint = 0;
@@ -77,7 +77,7 @@ public class Robot extends TimedRobot {
   private double jawUpperEncoderPosition;  
 
   // actually find the gear ratio and replace, 1 is a place holder
-  private double ticksPerFoot = 1;
+  private double ticksPerFoot = 4.97;
 
   // compressor logic
   boolean enabled = pcmCompressor.isEnabled();
@@ -145,22 +145,30 @@ public class Robot extends TimedRobot {
   public void autonomousPeriodic() {
     
     // get encoder readings and convert them to desired units 
-    rightEncoderPosition = (leftEncoder.getPosition() * ticksPerFoot);
-    leftEncoderPosition = (rightEncoder.getPosition() * ticksPerFoot);
+    rightEncoderPosition = (leftEncoder.getPosition() / ticksPerFoot);
+    leftEncoderPosition = (rightEncoder.getPosition() / ticksPerFoot);
 
-    // find average reading 
-    double distance = (leftEncoderPosition + rightEncoderPosition) / 2;
+    // distance travalled 
+    double distanceTravelled = (rightEncoderPosition + leftEncoderPosition)/2; 
+    double setDistance = 5;
 
-    double gyroSetpoint = 0; 
+    double distanceError = setDistance - distanceTravelled;  
+    double distanceKP = 0.1; 
+    double initialDrive = distanceKP * distanceError; 
+
+    double gyroSetpoint = navxAutonomousPosition; 
     double navxYawReading = navx.getYaw(); 
     double gyroError = gyroSetpoint - navxYawReading; 
-    double kp = 0.05; 
+    double kp = 0.025; 
 
-    double leftSpeed = 0.25 + (kp * gyroError); 
-    double rightSpeed = 0.25 - (kp * gyroError); 
+    double leftSpeed = initialDrive + (kp * gyroError); 
+    double rightSpeed = initialDrive - (kp * gyroError); 
 
-    rightMotorFront.set(rightSpeed);
+
+    // telling the robot to drive 
+    rightMotorFront.set(rightSpeed);    
     leftMotorFront.set(leftSpeed);
+
 
     // SmartDashboard.putNumber("gryo Angle", navx.getYaw()); 
 
@@ -171,20 +179,30 @@ public class Robot extends TimedRobot {
     navx.reset();
     navx.zeroYaw();
     jawLowerMotor.getEncoder().setPosition(0);
-  }
+  
+    leftMotorFront.getEncoder().setPosition(0);
+    rightMotorFront.getEncoder().setPosition(0);
+}
 
   @Override
   public void teleopPeriodic() {
 
-    
+    // rightEncoderPosition = rightEncoder.getPosition(); 
+    // leftEncoderPosition = leftEncoder.getPosition(); 
+    // SmartDashboard.putNumber("right encoder position", rightEncoderPosition); 
+    // SmartDashboard.putNumber("left encoder position", leftEncoderPosition); 
 
     // get joy stick readings 
     double joyStick_left_Y = -Joy.getRawAxis(var.joyStickLeft_AxisY) * var.safetyFactor;
-    double joyStick_right_X = -Joy.getRawAxis(var.joyStickRight_AxisX) * var.safetyFactor;
+    double joyStick_right_Y = -Joy.getRawAxis(var.joyStickRight_AxisX) * var.safetyFactor;
+
 
     // Acceleration Control _ Needs a time factor included
-    double LeftMotor_TargetPoint = joyStick_left_Y - (joyStick_right_X * var.turnRate);
-    double RightMotor_TargetPoint = joyStick_left_Y + (joyStick_right_X * var.turnRate);
+    // double LeftMotor_TargetPoint = joyStick_left_Y - (joyStick_right_X * var.turnRate);
+    // double RightMotor_TargetPoint = joyStick_left_Y + (joyStick_right_X * var.turnRate);
+
+    double LeftMotor_TargetPoint = joyStick_left_Y; 
+    double RightMotor_TargetPoint = joyStick_right_Y; 
 
     // calculate a speed for the motors 
     LeftMotor_Setpoint = Acceleration_contol(LeftMotor_TargetPoint, LeftMotor_Setpoint);
@@ -211,20 +229,21 @@ public class Robot extends TimedRobot {
     // ----------------------------------------------------------------------------------------------------------------------------//
     if (buttonRB) {
       gearSolenoid.set(DoubleSolenoid.Value.kReverse);
-
+        SmartDashboard.putString("gear mode", "torque"); 
     }
 
     else if (buttonLB) {
       gearSolenoid.set(DoubleSolenoid.Value.kForward);
+      SmartDashboard.putString("gear mode", "speed"); 
     }
 
-    if (buttonRight) {
-      pistonSolenoid.set(DoubleSolenoid.Value.kReverse);
-    }
+    // if (buttonRight) {
+    //   pistonSolenoid.set(DoubleSolenoid.Value.kReverse);
+    // }
   
-    else if (buttonLeft) {
-       pistonSolenoid.set(DoubleSolenoid.Value.kForward);
-    }
+    // else if (buttonLeft) {
+    //    pistonSolenoid.set(DoubleSolenoid.Value.kForward);
+    // }
 
 
     // --------------------------------------------------------------------------------------------------------------------- //
@@ -241,27 +260,27 @@ public class Robot extends TimedRobot {
 
 
     if (buttonA) {
-        Jaw_Lower_Setpoint = 90;  
-        Jaw_Upper_Setpoint = 90; 
-
-        pidLowerJaw(Jaw_Lower_Setpoint, jawLowerAngle); 
-        pidUpperJaw(Jaw_Upper_Setpoint, jawUpperAngle); 
-
+        Jaw_Lower_Setpoint = 0;  
+        Jaw_Upper_Setpoint = 0;
+        // jawLowerMotor.set(0.5); 
     }
 
+
     else if(buttonB){
-        Jaw_Lower_Setpoint = 0; 
-        Jaw_Upper_Setpoint = 0; 
+        Jaw_Lower_Setpoint = -90; 
+        Jaw_Upper_Setpoint = -90; 
         // jawLowerMotor.set(pidLowerJaw(Jaw_Lower_Setpoint, jawAngle));
         pidLowerJaw(Jaw_Lower_Setpoint, jawLowerAngle);      
-        pidUpperJaw(Jaw_Upper_Setpoint, jawUpperAngle); 
+        // pidUpperJaw(Jaw_Upper_Setpoint, jawUpperAngle); 
     } 
 
     else {
         jawLowerMotor.set(0);
-        jawUpperMotor.set(0); 
+        // jawUpperMotor.set(0); 
     }
-    
+
+    pidLowerJaw(Jaw_Lower_Setpoint, jawLowerAngle); 
+    // pidUpperJaw(Jaw_Upper_Setpoint, jawUpperAngle); 
 
   }
 
@@ -328,7 +347,7 @@ public class Robot extends TimedRobot {
         SmartDashboard.putNumber("error", error); 
         jawLowerMotor.set(speed);
 
-        if(error < 1 && error > -1){
+        if(error < 2 && error > -2){
             break; 
         } 
     }
