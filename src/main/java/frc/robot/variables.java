@@ -5,7 +5,9 @@ public class variables {
     int leftBackMotorID = 1;
     int rightFrontMotorID = 4;
     int rightBackMotorID = 3;  
-    int jawMotorID = 5;  
+    int jawLowerMotorID = 5;  
+    int jawUpperMotorID = 6; 
+    int lowerIntakeMortorID = 7;
 
     // joy stick axises
     int joyStickLeft_AxisY = 1; 
@@ -14,6 +16,14 @@ public class variables {
     // button channels 
     int buttonAChannel = 1; 
     int buttonBChannel = 2; 
+    int buttonYChannel = 7;
     int buttonRBChannel = 5; 
     int buttonLBChannel = 6; 
+    int buttonLeftChannel = 9;
+    int buttonRightChannel = 10;
+
+    // safty shoes 
+    double safetyFactor = 0.5; 
+    double turnRate = 0.5; 
+
 }
