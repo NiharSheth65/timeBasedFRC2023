@@ -1,3 +1,4 @@
+
 package frc.robot;
 
 public class variables {
@@ -29,5 +30,9 @@ public class variables {
     // pid stuff 
     double distanceKP = 0.05;
     double gyroKP = 0.025;
+
+    // piston timings 
+    double pistonQuick = 50; 
+    double pistonLong = 100; 
  
 }
