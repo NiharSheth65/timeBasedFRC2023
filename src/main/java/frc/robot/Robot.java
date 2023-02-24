@@ -4,6 +4,17 @@
 
 package frc.robot;
 
+import com.kauailabs.navx.frc.AHRS;
+import com.revrobotics.CANSparkMax;
+import com.revrobotics.CANSparkMaxLowLevel.MotorType;
+import com.revrobotics.RelativeEncoder;
+import com.revrobotics.SparkMaxPIDController;
+
+import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableEntry;
+import edu.wpi.first.networktables.NetworkTableInstance;
 // import edu.wpi.first.cameraserver.CameraServer;
 // import edu.wpi.first.cscore.UsbCamera;
 import edu.wpi.first.wpilibj.Compressor;
@@ -12,33 +23,11 @@ import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.PneumaticsModuleType;
 import edu.wpi.first.wpilibj.SPI;
 import edu.wpi.first.wpilibj.TimedRobot;
-import edu.wpi.first.wpilibj.I2C.Port;
-// import edu.wpi.first.wpilibj.drive.DifferentialDrive;
-import edu.wpi.first.wpilibj.motorcontrol.VictorSP;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.motorcontrol.Spark;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard; 
+import com.revrobotics.SparkMaxPIDController;
 
-import com.kauailabs.navx.frc.AHRS;
-import com.revrobotics.CANSparkMax;
-import com.revrobotics.RelativeEncoder;
-import com.revrobotics.CANSparkMaxLowLevel.MotorType;
-
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableEntry;
-import edu.wpi.first.networktables.NetworkTableInstance;
-
-import edu.wpi.first.cameraserver.CameraServer;
-import edu.wpi.first.wpilibj.TimedRobot;
-
-/**
- * The VM is configured to automatically run this class, and to call the
- * functions corresponding to
- * each mode, as described in the TimedRobot documentation. If you change the
- * name of this class or
- * the package after creating this project, you must also update the
- * build.gradle file in the
- * project.
- */
 public class Robot extends TimedRobot {
   /**
    * This function is run when the robot is first started up and should be used
@@ -57,30 +46,36 @@ public class Robot extends TimedRobot {
   private CANSparkMax leftMotorBack;
   private CANSparkMax rightMotorFront;
   private CANSparkMax rightMotorBack;
-  private CANSparkMax jawMotor; 
-
+  private CANSparkMax jawLowerMotor;
+  private CANSparkMax jawUpperMotor;
+//   private CANVictorSpx lowerintake;//
+    
   // creating enencoder
   private RelativeEncoder rightEncoder;
   private RelativeEncoder leftEncoder;
+  private RelativeEncoder jawLowerEncoder;
+  private RelativeEncoder jawUpperEncoder;
 
   // creating compressor object
   Compressor pcmCompressor = new Compressor(0, PneumaticsModuleType.CTREPCM);
 
   // creating double solonoids
-  DoubleSolenoid leftSolenoid = new DoubleSolenoid(PneumaticsModuleType.CTREPCM, 0, 1);
-  DoubleSolenoid rightSolenoid = new DoubleSolenoid(PneumaticsModuleType.CTREPCM, 2, 3);
+  DoubleSolenoid gearSolenoid = new DoubleSolenoid(PneumaticsModuleType.CTREPCM, 2, 3);
+  DoubleSolenoid pistonSolenoid = new DoubleSolenoid(PneumaticsModuleType.CTREPCM, 0, 1);
 
   // intial setpoints
   private double LeftMotor_Setpoint = 0;
   private double RightMotor_Setpoint = 0;
-  private double Jaw_Setpoint = 0; 
-  private double Jaw_Speed; 
+  private double Jaw_Lower_Setpoint = 0;
+  private double Jaw_Upper_Setpoint = 0;
 
   private double rightEncoderPosition;
   private double leftEncoderPosition;
+  private double jawLowerEncoderPosition;
+  private double jawUpperEncoderPosition;
 
   // actually find the gear ratio and replace, 1 is a place holder
-  private double ticksPerFoot = 1;
+  private double ticksPerFoot = 2;
 
   // compressor logic
   boolean enabled = pcmCompressor.isEnabled();
@@ -89,38 +84,65 @@ public class Robot extends TimedRobot {
   private AHRS navx = new AHRS(SPI.Port.kMXP);
   double navxAutonomousPosition;
 
+  // auto chooser stuff
+  private static final String kMiddleAuto = "middle";
+  private static final String kRightAuto = "right";
+  private static final String kLeftAuto = "left";
+  private String m_autoSelected;
+  private final SendableChooser<String> m_chooser = new SendableChooser<>();
+
+
+//   pid controllers 
+
+  private SparkMaxPIDController lowerJawPidController; 
+
   @Override
   public void robotInit() {
+
+    // create all variable objects
     leftMotorFront = new CANSparkMax(var.leftFrontMotorID, MotorType.kBrushless);
     leftMotorBack = new CANSparkMax(var.leftBackMotorID, MotorType.kBrushless);
     rightMotorFront = new CANSparkMax(var.rightFrontMotorID, MotorType.kBrushless);
     rightMotorBack = new CANSparkMax(var.rightBackMotorID, MotorType.kBrushless);
-    jawMotor = new CANSparkMax(var.jawMotorID, MotorType.kBrushless); 
+    jawLowerMotor = new CANSparkMax(var.jawLowerMotorID, MotorType.kBrushless);
+    jawUpperMotor = new CANSparkMax(var.jawUpperMotorID, MotorType.kBrushless);
+    // lowerintake = new CANVictorSpx(var.lowerIntakeMortorID, MotorType.kBrushless)
 
-    // CameraServer.startAutomaticCapture();
-    // final UsbCamera camera;
-
-    // camera = CameraServer.startAutomaticCapture();
-    // camera.getVideoMode();
-    // camera.setResolution(250, 250);
-
+    // reset all motors
     leftMotorFront.restoreFactoryDefaults();
     leftMotorBack.restoreFactoryDefaults();
     rightMotorFront.restoreFactoryDefaults();
     rightMotorBack.restoreFactoryDefaults();
-    jawMotor.restoreFactoryDefaults(); 
-    // the back motors will be following the front motors
+    jawLowerMotor.restoreFactoryDefaults();
 
+    // the back motors will be following the front motors
     leftMotorFront.setInverted(true);
     leftMotorBack.setInverted(true);
 
+    // get back motors to follow front motors
     leftMotorBack.follow(leftMotorFront);
     rightMotorBack.follow(rightMotorFront);
 
+    // setting the encoders
     rightEncoder = rightMotorFront.getEncoder();
     leftEncoder = leftMotorFront.getEncoder();
-  
+    jawLowerEncoder = jawLowerMotor.getEncoder();
+    jawUpperEncoder = jawUpperMotor.getEncoder();
+
+    // start camera
     CameraServer.startAutomaticCapture();
+
+    // auto chooser
+    m_chooser.setDefaultOption("Middle Auto", kMiddleAuto);
+    m_chooser.addOption("Right Auto", kRightAuto);
+    m_chooser.addOption("Left Auto", kLeftAuto);
+    SmartDashboard.putData("Auto choices", m_chooser);
+    
+    lowerJawPidController = jawLowerMotor.getPIDController(); 
+    lowerJawPidController.setP(var.lower_jaw_kp);
+    lowerJawPidController.setI(var.lower_jaw_ki);
+    lowerJawPidController.setD(var.lower_jaw_kd);   
+
   }
 
   @Override
@@ -129,53 +151,77 @@ public class Robot extends TimedRobot {
 
   @Override
   public void autonomousInit() {
+
+    // set encoders to 0
     leftMotorFront.getEncoder().setPosition(0);
     rightMotorFront.getEncoder().setPosition(0);
+
+    // reset and zero the navx
     navx.reset();
     navx.zeroYaw();
+
+    // set automous position to 0
     navxAutonomousPosition = navx.getYaw();
+
+    // option chooser
+    m_autoSelected = m_chooser.getSelected();
+    System.out.println("Auto selected: " + m_autoSelected);
   }
 
   @Override
   public void autonomousPeriodic() {
 
-    rightEncoderPosition = (leftEncoder.getPosition() * ticksPerFoot);
-    leftEncoderPosition = (rightEncoder.getPosition() * ticksPerFoot);
+    m_autoSelected = m_chooser.getSelected();
+    System.out.println("Auto selected: " + m_autoSelected);
 
-    double distance = (leftEncoderPosition + rightEncoderPosition) / 2;
+    // get encoder readings and convert them to desired units
+    rightEncoderPosition = (leftEncoder.getPosition() / ticksPerFoot);
+    leftEncoderPosition = (rightEncoder.getPosition() / ticksPerFoot);
 
-    double gyroDegreesTurned = navx.getYaw() - navxAutonomousPosition;
+    // distance travalled
+    double distanceTravelled = (rightEncoderPosition + leftEncoderPosition) / 2;
 
-    SmartDashboard.putNumber("gryo Angle", navx.getYaw()); 
-    
-    double angleTotal = 0; 
-    double timesRan = 0; 
+    double gyroSetpoint = navxAutonomousPosition;
+    double navxYawReading = navx.getYaw();
 
-    if(navx.getYaw() >= -0.5 && navx.getYaw() <= 0.5){
-      rightMotorFront.set(0.125);
-      leftMotorFront.set(0.125);
+    switch (m_autoSelected) {
+      case kRightAuto:
+        // Put custom auto code here
+        break;
+      case kLeftAuto:
+        // put left code here
+        break;
+      case kMiddleAuto:
+      default:
+        // should clear doc and point line by this point
+        double setDistance = 20;
+        double distanceError = setDistance - distanceTravelled;
+
+        while(distanceError > 0){
+            // get encoder readings and convert them to desired units
+            rightEncoderPosition = (leftEncoder.getPosition() / ticksPerFoot);
+            leftEncoderPosition = (rightEncoder.getPosition() / ticksPerFoot);
+
+            // distance travalled
+            distanceTravelled = (rightEncoderPosition + leftEncoderPosition) / 2;
+
+            gyroSetpoint = navxAutonomousPosition;
+            navxYawReading = navx.getYaw();
+
+            distanceError = setDistance - distanceTravelled;
+            SmartDashboard.putNumber("auto distance travelled", distanceTravelled); 
+            SmartDashboard.putNumber("auto erorr", distanceError); 
+            goForward(setDistance, distanceTravelled, gyroSetpoint, navxYawReading, distanceError);
+        }
+
+        break;
     }
 
-    else if(navx.getYaw() > 0.5){
-      rightMotorFront.set(0.22); 
-      leftMotorFront.set(0.125); 
-    }
-    
-    else if(navx.getYaw() < -0.5){
-      rightMotorFront.set(0.125);
-      leftMotorFront.set(0.175);
-    }
+    SmartDashboard.putNumber("right ticks", rightEncoder.getPosition());
+    SmartDashboard.putNumber("left ticks", leftEncoder.getPosition());
 
-    else{
-      rightMotorFront.set(0);
-      leftMotorFront.set(0);
-    }
-
-    timesRan++;
-    angleTotal += navx.getYaw(); 
-
-    double medianAngle = angleTotal/timesRan; 
-    SmartDashboard.putNumber("median number", medianAngle); 
+    SmartDashboard.putNumber("right voltage", leftMotorFront.getBusVoltage());
+    SmartDashboard.putNumber("left voltage", leftMotorFront.getBusVoltage());
 
   }
 
@@ -183,75 +229,154 @@ public class Robot extends TimedRobot {
   public void teleopInit() {
     navx.reset();
     navx.zeroYaw();
+    jawLowerMotor.getEncoder().setPosition(0);
+
+    leftMotorFront.getEncoder().setPosition(0);
+    rightMotorFront.getEncoder().setPosition(0);
+
+    jawLowerMotor.getEncoder().setPosition(0); 
+    jawUpperMotor.getEncoder().setPosition(0); 
   }
 
   @Override
   public void teleopPeriodic() {
 
-    double gyroYaw = navx.getYaw();
-    double gyroRoll = navx.getRoll();
-    double gyroPitch = navx.getPitch();
-    double gyroAngle = navx.getAngle();
-    double gyroDisplacemntX = navx.getDisplacementX();
-    double gyroDisplacemntY = navx.getDisplacementY();
-    double gyroDisplacemntZ = navx.getDisplacementZ();
+    rightEncoderPosition = rightEncoder.getPosition();
+    leftEncoderPosition = leftEncoder.getPosition();
+    SmartDashboard.putNumber("right encoder position teleOp", rightEncoderPosition);
+    SmartDashboard.putNumber("left encoder position teleOp", leftEncoderPosition);
 
-    // System.out.println("gryo pitch: " + gyroPitch);
-    SmartDashboard.putNumber("gyro yaw", gyroYaw);
-    SmartDashboard.putNumber("gyro roll", gyroRoll);
-    SmartDashboard.putNumber("gyro pitch", gyroPitch);
-    SmartDashboard.putNumber("gyro angle", gyroAngle);
-    SmartDashboard.putNumber("gyro displacemnt x", gyroDisplacemntX);
-    SmartDashboard.putNumber("gyro displacement y", gyroDisplacemntY);
-    SmartDashboard.putNumber("gyro displacement z", gyroDisplacemntZ);
-
-    double safetyFactor = 0.5;
-    double joyStick_left_Y = -Joy.getRawAxis(var.joyStickLeft_AxisY) * safetyFactor;
-    double joyStick_right_X = -Joy.getRawAxis(var.joyStickRight_AxisX) * safetyFactor;
+    // get joy stick readings
+    double joyStick_left_Y = -Joy.getRawAxis(var.joyStickLeft_AxisY) * var.safetyFactor;
+    double joyStick_right_X = -Joy.getRawAxis(var.joyStickRight_AxisX) * var.safetyFactor;
 
     // Acceleration Control _ Needs a time factor included
+    double LeftMotor_TargetPoint = joyStick_left_Y - (joyStick_right_X * var.turnRate);
+    double RightMotor_TargetPoint = joyStick_left_Y + (joyStick_right_X * var.turnRate);
 
-    double turnRate = 0.25;
-    double LeftMotor_TargetPoint = joyStick_left_Y - (joyStick_right_X * turnRate);
-    double RightMotor_TargetPoint = joyStick_left_Y + (joyStick_right_X * turnRate);
+    // calculate a speed for the motors
     LeftMotor_Setpoint = Acceleration_contol(LeftMotor_TargetPoint, LeftMotor_Setpoint);
     RightMotor_Setpoint = Acceleration_contol(RightMotor_TargetPoint, RightMotor_Setpoint);
 
+    // set the motors to that speed
     rightMotorFront.set(RightMotor_Setpoint);
     leftMotorFront.set(LeftMotor_Setpoint);
 
+    // read button a and b values
     boolean buttonA = Joy.getRawButton(var.buttonAChannel);
     boolean buttonB = Joy.getRawButton(var.buttonBChannel);
+    boolean buttonY = Joy.getRawButton(var.buttonYChannel);
 
+    // read rb and lb buttons
     boolean buttonRB = Joy.getRawButton(var.buttonRBChannel);
     boolean buttonLB = Joy.getRawButton(var.buttonLBChannel);
 
+    // read button right and elft
+    boolean buttonRight = Joy.getRawButton(var.buttonRightChannel);
+    boolean buttonLeft = Joy.getRawButton(var.buttonLeftChannel);
+
+    // pneumatics control
+    // ----------------------------------------------------------------------------------------------------------------------------//
+
+    double pistonStartTime;
+
     if (buttonRB) {
-      leftSolenoid.set(DoubleSolenoid.Value.kReverse);
-      rightSolenoid.set(DoubleSolenoid.Value.kReverse);
+
+      pistonStartTime = System.currentTimeMillis();
+
+    
+      while (System.currentTimeMillis() - pistonStartTime < var.pistonQuick) {
+        deployPiston();
+      }
+
+      retractPiston();
 
     }
 
     else if (buttonLB) {
-      leftSolenoid.set(DoubleSolenoid.Value.kForward);
-      rightSolenoid.set(DoubleSolenoid.Value.kForward);
+
+      pistonStartTime = System.currentTimeMillis();
+
+      while (System.currentTimeMillis() - pistonStartTime < var.pistonSlow) {
+        deployPiston();
+      }
+
+      retractPiston();
+
     }
 
+    // if (buttonRight) {
+    // pistonSolenoid.set(DoubleSolenoid.Value.kReverse);
+    // }
 
-    if (buttonA == true) {
-      // Jaw_Setpoint = 10; 
-      // Jaw_Speed = pidJaw(Jaw_Setpoint, 10); 
-      jawMotor.set(0.1);
+    // else if (buttonLeft) {
+    // pistonSolenoid.set(DoubleSolenoid.Value.kForward);
+
+    // }
+
+    // ---------------------------------------------------------------------------------------------------------------------
+    // //
+    // jaw lower and upper stuff
+
+    jawLowerEncoderPosition = (jawLowerEncoder.getPosition());
+    jawUpperEncoderPosition = (jawUpperEncoder.getPosition());
+
+    double jawLowerAngle = jawLowerEncoderPosition; //50 
+    double jawUpperAngle = jawUpperEncoderPosition; // 7.5
+
+    SmartDashboard.putNumber("Jaw Lower Angle", jawLowerAngle);
+    SmartDashboard.putNumber("Jaw Upper Angle", jawUpperAngle);
+
+    if (buttonA) {
+      Jaw_Lower_Setpoint = 0;
+      Jaw_Upper_Setpoint = 0;
+      // jawLowerMotor.set(0.5);
+    }
+
+    else if (buttonB) {
+      Jaw_Lower_Setpoint = -147;
+      Jaw_Upper_Setpoint = -75;
+    }
+
+    else if(buttonY) {
+        Jaw_Lower_Setpoint = -94;
+    }
+
+    // else {
+    //   jawLowerMotor.set(0);
+    //   jawUpperMotor.set(0);
+    // }
+
+    
+    
+    // lower_jaw_pid_controller.setTolerance(10, 10);
+    
+    if(Math.abs(Jaw_Lower_Setpoint - jawLowerAngle) > 2){
+      // jawLowerMotor.set(lower_jaw_pid_controller.calculate(jawLowerAngle, Jaw_Lower_Setpoint));
     }
 
     else{
-      jawMotor.set(0
-      );
+      // jawLowerMotor.set(0); 
     }
 
+    // pidLowerJaw(Jaw_Lower_Setpoint, jawLowerAngle);
+    // pidUpperJaw(Jaw_Upper_Setpoint, jawUpperAngle);
 
-    // jawMotor.set(Jaw_Speed); 
+    // limelight stuff
+    NetworkTable table = NetworkTableInstance.getDefault().getTable("limelight");
+    NetworkTableEntry tx = table.getEntry("tx");
+    NetworkTableEntry ty = table.getEntry("ty");
+    NetworkTableEntry ta = table.getEntry("ta");
 
+    // read values periodically
+    double x = tx.getDouble(0.0);
+    double y = ty.getDouble(0.0);
+    double area = ta.getDouble(0.0);
+
+    // post to smart dashboard periodically
+    SmartDashboard.putNumber("LimelightX", x);
+    SmartDashboard.putNumber("LimelightY", y);
+    SmartDashboard.putNumber("LimelightArea", area);
   }
 
   @Override
@@ -260,22 +385,6 @@ public class Robot extends TimedRobot {
 
   @Override
   public void disabledPeriodic() {
-  }
-
-  @Override
-  public void testInit() {
-  }
-
-  @Override
-  public void testPeriodic() {
-  }
-
-  @Override
-  public void simulationInit() {
-  }
-
-  @Override
-  public void simulationPeriodic() {
   }
 
   public double Acceleration_contol(double TargetPoint, double Setpoint) {
@@ -313,16 +422,82 @@ public class Robot extends TimedRobot {
     rightMotorFront.set(0.25);
     leftMotorFront.set(0.25);
 
-    SmartDashboard.putNumber("gryo value", navx.getYaw());
+    // SmartDashboard.putNumber("gryo value", navx.getYaw());
 
   }
 
-  public double pidJaw(double setPoint, double measurment){
-    double error = measurment - setPoint; 
-    double kp = 0; 
-    double speed = error * kp; 
-    return speed; 
+  // lower jaw pid control
+
+//   public void pidLowerJaw(double setPoint, double measurment) {
+//     double error = setPoint - measurment;
+//     double kp = 0.005;
+
+//     // SmartDashboard.putNumber("speed", speed);
+//     double speed = error * kp;
+//     // double newMeasurment = (jawLowerEncoder.getPosition() * 7.5);
+//     // error = setPoint - newMeasurment;
+//     SmartDashboard.putNumber("error", error);
+//     jawLowerMotor.set(speed);
+//   }
+
+  // upper jaw pid control
+
+  public void pidUpperJaw(double setPoint, double measurment) {
+    double error = setPoint - measurment;
+    double kp = 0.005;
+
+    // SmartDashboard.putNumber("speed", speed);
+
+    double speed = error * kp;
+    // double newMeasurment = (jawLowerEncoder.getPosition() * 7.5);
+    // error = setPoint - newMeasurment;
+    SmartDashboard.putNumber("error", error);
+    jawUpperMotor.set(speed);
   }
 
+  // going forward in autonomous
 
+  public void goForward(double setDistance, double distanceTravelled, double gyroSetpoint, double navxYawReading, double distanceError) {
+
+
+    double initialDrive;
+
+    double gyroError = gyroSetpoint - navxYawReading;
+
+    double gyroDrive = var.gyroKP * gyroError;
+
+    if (distanceError < setDistance * 0.5) {
+      initialDrive = 0.5;
+    }
+
+    else {
+      initialDrive = var.distanceKP * distanceError;
+    }
+
+    double leftSpeed = initialDrive + gyroDrive;
+    double rightSpeed = initialDrive - gyroDrive;
+
+
+    // telling the robot to drive
+    rightMotorFront.set(rightSpeed);
+    leftMotorFront.set(leftSpeed);
+  }
+
+  // piston commands
+
+  public void deployPiston() {
+    pistonSolenoid.set(DoubleSolenoid.Value.kForward);
+
+  }
+
+  public void retractPiston() {
+    pistonSolenoid.set(DoubleSolenoid.Value.kReverse);
+  }
+
+  // return speed;
+
+  // work for tommorow, start converting encoder values into degrees
+  // use that as a measured value
+  // start determing set point values
+  // try turning to those values
 }
