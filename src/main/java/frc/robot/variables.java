@@ -28,7 +28,7 @@ public class variables {
 
     // safty stuff 
     double safetyFactor = 0.5; 
-    double turnRate = 0.25; 
+    double turnRate = 0.35; 
 
     // pid stuff 
     double distanceKP = 0.05;
@@ -88,7 +88,7 @@ public class variables {
     int winchPort = 4; 
 
     // autonomous contants 
-    double ticksPerFoot = 2; 
+    double rotationsPerFoot = 2.26; 
 
     // drive pid constants 
     double drive_kp = 0.05;  
@@ -104,5 +104,13 @@ public class variables {
     double pitch_kp = 0.05; 
     double pitch_ki = 0; 
     double pitch_kd = 0; 
+
+    // double velocity PID constants
+    double velocity_kp = 0.0003; 
+    double velocity_ki = 0.0001; 
+    double velocity_kd = 0; 
+
+    // autonomous speed
+    double autonomousSpeedFast = 400;
 
 }

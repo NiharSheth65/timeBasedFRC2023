@@ -60,8 +60,12 @@ public class Robot extends TimedRobot {
   private VictorSP winchMotor = new VictorSP(var.winchPort);
 
   // creating enencoder
-  private RelativeEncoder rightEncoder;
-  private RelativeEncoder leftEncoder;
+  private RelativeEncoder rightFrontEncoder; 
+  private RelativeEncoder leftFrontEncoder;
+  private RelativeEncoder rightBackEncoder;
+  private RelativeEncoder leftBackEncoder;
+  
+
   private RelativeEncoder jawLowerEncoder;
   private RelativeEncoder jawUpperEncoder;
 
@@ -80,8 +84,11 @@ public class Robot extends TimedRobot {
   private double Jaw_Lower_Setpoint = 0;
   private double Jaw_Upper_Setpoint = 0;
 
-  private double rightEncoderPosition;
-  private double leftEncoderPosition;
+  private double rightFrontEncoderPosition;
+  private double leftFrontEncoderPosition;
+  private double rightBackEncoderPosition;
+  private double leftBackEncoderPosition;
+  
   private double jawLowerEncoderPosition;
   private double jawUpperEncoderPosition;
 
@@ -106,6 +113,9 @@ public class Robot extends TimedRobot {
   PIDController autonDrivePIDControllers = new PIDController(var.drive_kp, var.drive_ki, var.drive_kd); 
   PIDController gryoDrivePIDControllers = new PIDController(var.gryo_kp, var.gryo_ki, var.gryo_kd); 
   PIDController gryoPitchPIDControllers = new PIDController(var.pitch_kp, var.pitch_ki, var.pitch_kd); 
+  
+  PIDController velocityRightPIDControllers = new PIDController(var.velocity_kp, var.velocity_ki, var.drive_kd); 
+  PIDController velocityLeftPIDControllers = new PIDController(var.velocity_kp, var.velocity_ki, var.drive_kd); 
   
   // piston variables
   boolean jawLowerInPosition;
@@ -170,8 +180,11 @@ public class Robot extends TimedRobot {
     rightMotorBack.follow(rightMotorFront);
 
     // setting the encoders
-    rightEncoder = rightMotorFront.getEncoder();
-    leftEncoder = leftMotorFront.getEncoder();
+    rightFrontEncoder = rightMotorFront.getEncoder();
+    leftFrontEncoder = leftMotorFront.getEncoder();
+    rightBackEncoder = rightMotorBack.getEncoder(); 
+    leftBackEncoder = leftMotorBack.getEncoder(); 
+
     jawLowerEncoder = jawLowerMotor.getEncoder();
     jawUpperEncoder = jawUpperMotor.getEncoder();
 
@@ -187,8 +200,8 @@ public class Robot extends TimedRobot {
     jawLowerMotor.getEncoder().setPosition(0);
     jawUpperMotor.getEncoder().setPosition(0);
 
-    jawLowerMotor.set(jawLowerMotorPIDControllers.calculate(jawLowerEncoder.getPosition(), 0));
-    jawUpperMotor.set(jawUpperMotorPIDControllers.calculate(jawUpperEncoder.getPosition(), 0));
+    // jawLowerMotor.set(jawLowerMotorPIDControllers.calculate(jawLowerEncoder.getPosition(), 0));
+    // jawUpperMotor.set(jawUpperMotorPIDControllers.calculate(jawUpperEncoder.getPosition(), 0));
 
     jawLowerInPosition = true;
     jawUpperInPosition = true;
@@ -223,7 +236,10 @@ public class Robot extends TimedRobot {
     m_autoSelected = m_chooser.getSelected();
     System.out.println("Auto selected: " + m_autoSelected);
   
-    autonStage = 0; 
+    // autonStage = 0; 
+    // modeRequested = ; 
+    // modeCurrent = changeMode(modeRequested, modeCurrent);
+    // runModes();
   }
 
   @Override
@@ -244,11 +260,12 @@ public class Robot extends TimedRobot {
       case kMiddleAuto:
       default:
         // should clear doc and point line by this point 
-        autonnomousMiddle();
-    }
+        // autonnomousMiddle();
+        goForward(10);
+      }
 
-    SmartDashboard.putNumber("right ticks", rightEncoder.getPosition());
-    SmartDashboard.putNumber("left ticks", leftEncoder.getPosition());
+    SmartDashboard.putNumber("right ticks", rightFrontEncoder.getPosition());
+    SmartDashboard.putNumber("left ticks", leftFrontEncoder.getPosition());
 
     SmartDashboard.putNumber("right voltage", leftMotorFront.getBusVoltage());
     SmartDashboard.putNumber("left voltage", leftMotorFront.getBusVoltage());
@@ -265,6 +282,8 @@ public class Robot extends TimedRobot {
 
     leftMotorFront.getEncoder().setPosition(0);
     rightMotorFront.getEncoder().setPosition(0);
+    leftMotorBack.getEncoder().setPosition(0);
+    rightMotorBack.getEncoder().setPosition(0);
 
     jawLowerMotor.getEncoder().setPosition(0);
     jawUpperMotor.getEncoder().setPosition(0);
@@ -283,10 +302,10 @@ public class Robot extends TimedRobot {
   @Override
   public void teleopPeriodic() {
 
-    rightEncoderPosition = rightEncoder.getPosition();
-    leftEncoderPosition = leftEncoder.getPosition();
-    SmartDashboard.putNumber("right encoder position teleOp", rightEncoderPosition);
-    SmartDashboard.putNumber("left encoder position teleOp", leftEncoderPosition);
+    rightFrontEncoderPosition = rightFrontEncoder.getPosition();
+    leftFrontEncoderPosition = leftFrontEncoder.getPosition();
+    SmartDashboard.putNumber("right encoder position teleOp", rightFrontEncoderPosition);
+    SmartDashboard.putNumber("left encoder position teleOp", leftFrontEncoderPosition);
 
     // get joy stick readings
     double joyStick_left_Y = -Joy.getRawAxis(var.joyStickLeft_AxisY) * var.safetyFactor;
@@ -338,7 +357,15 @@ public class Robot extends TimedRobot {
 
    
 
-    SmartDashboard.putNumber("upper mode", setUpperMode);
+    // SmartDashboard.putNumber("upper mode", setUpperMode);
+    SmartDashboard.putNumber("right front encoder values", rightFrontEncoder.getPosition()); 
+    SmartDashboard.putNumber("right back encoder values", rightBackEncoder.getPosition()); 
+    SmartDashboard.putNumber("left front encoder values", leftFrontEncoder.getPosition()); 
+    SmartDashboard.putNumber("left back encoder values", leftBackEncoder.getPosition()); 
+
+
+    SmartDashboard.putNumber("right velocity", rightFrontEncoder.getVelocity()); 
+    SmartDashboard.putNumber("left velocity", leftFrontEncoder.getVelocity());
 
     // run upper intake
 
@@ -462,12 +489,12 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("Jaw Lower Angle", jawLowerAngle);
     SmartDashboard.putNumber("Jaw Upper Angle", jawUpperAngle);
 
-    jawLowerMotor.set(jawLowerMotorPIDControllers.calculate(jawLowerAngle, Jaw_Lower_Setpoint));
+    // jawLowerMotor.set(jawLowerMotorPIDControllers.calculate(jawLowerAngle, Jaw_Lower_Setpoint));
 
     lowerIntakeMotor.set(lowerIntakeSpeed);
 
     if (Math.abs(Jaw_Lower_Setpoint - jawLowerEncoder.getPosition()) < 2) {
-      jawUpperMotor.set(jawUpperMotorPIDControllers.calculate(jawUpperAngle, Jaw_Upper_Setpoint));
+      // jawUpperMotor.set(jawUpperMotorPIDControllers.calculate(jawUpperAngle, Jaw_Upper_Setpoint));
 
       jawLowerInPosition = true;
 
@@ -530,7 +557,7 @@ public class Robot extends TimedRobot {
       // mode 2 shoot position and shoot piston
       else if (newModeSelected == 4) {
         Jaw_Lower_Setpoint = var.shootPositionLowerJaw;
-        Jaw_Upper_Setpoint = var.shootPositionUpperJaw;
+        Jaw_Upper_Setpoint = var.pickUpPositionUpperJaw;
         jawLowerInPosition = false;
         jawUpperInPosition = false;
         lowerIntakeSpeed = 0;
@@ -678,57 +705,115 @@ public class Robot extends TimedRobot {
     //   // once completed increase stage 
     // } 
 
+    // if(autonStage == 0){
+    //   modeRequested = 2; 
+    //   modeCurrent = changeMode(modeRequested, modeCurrent);
+    //   runModes();
+    //   leftMotorFront.getEncoder().setPosition(0);
+    //   rightMotorFront.getEncoder().setPosition(0);
+    // }
+
     if(autonStage == 0){
-      modeRequested = 2; 
-      modeCurrent = changeMode(modeRequested, modeCurrent);
-      runModes();
+      setUpperMode = 0; 
+      distanceToTravel = 10;// 2.26 = 1 foot abou 45 for 20ft  
+      goForward(distanceToTravel);
     }
 
     else if(autonStage == 1){
-      setUpperMode = 0; 
-      distanceToTravel = 10;
-      goForward(distanceToTravel);
+      leftMotorFront.set(0);
+      rightMotorFront.set(0);
     }
 
-    else if(autonStage == 2){
-      distanceToTravel = -1; 
-      goForward(distanceToTravel);
-    }
 
-    else if(autonStage == 3){
-      balanceOnDock(); 
-    }
+    // else if(autonStage == 2){
+    //   distanceToTravel = -1; 
+    //   goForward(distanceToTravel);
+    // }
+
+    // else if(autonStage == 3){
+    //   balanceOnDock(); 
+    // }
     // else if(autonStage == 1){
     //   rightMotorFront.set(0);
     //   leftMotorFront.set(0);
     // }
 
-
+      SmartDashboard.putNumber("auton stage", autonStage); 
   }
 
-  public void goForward(double driveSetPoint) {
+  public void goForward(double driveForwardSetPoint) {
     
-    distanceTravelled = (rightEncoderPosition + leftEncoderPosition) / 2;
-    gyroSetpoint = navxAutonomousPosition;
-    navxYawReading = navx.getYaw();
+    double leftWheelVelocity = leftFrontEncoder.getVelocity(); 
+    double rightWheelVelocity = rightFrontEncoder.getVelocity(); 
 
-    // get encoder readings and convert them to desired units
-    rightEncoderPosition = (leftEncoder.getPosition() / var.ticksPerFoot);
-    leftEncoderPosition = (rightEncoder.getPosition() / var.ticksPerFoot);
+    double maxVelocity = 200;  
 
-    double driveSpeed = autonDrivePIDControllers.calculate(distanceTravelled, driveSetPoint); 
-    double gryoSpeed = gryoDrivePIDControllers.calculate(navxYawReading, gyroSetpoint); 
+    double autonomousSpeed; 
+    double rightWheelOutput; 
+    double leftWheelOutput; 
+    
+    if(rightFrontEncoder.getPosition() < 45){
+      autonomousSpeed = var.autonomousSpeedFast; 
+    }
 
-    rightMotorFront.set(driveSpeed + gryoSpeed);
-    leftMotorFront.set(driveSpeed - gryoSpeed);
+    
+    else{
+      autonomousSpeed = 0;   
+    }
 
-    if(Math.abs(distanceTravelled - driveSetPoint) < 0.1){
-      autonStage++;
-      autonDrivePIDControllers.reset();
-      gryoDrivePIDControllers.reset(); 
+    rightWheelOutput = velocityRightPIDControllers.calculate(rightWheelVelocity, autonomousSpeed); 
+    leftWheelOutput = velocityLeftPIDControllers.calculate(leftWheelVelocity, autonomousSpeed);
+
+    double maxOutput = 1; 
+
+    if(leftWheelOutput > maxOutput){
+      leftWheelOutput = maxOutput; 
+    }
+
+    else if(leftWheelOutput < -maxOutput){
+      leftWheelOutput = -maxOutput; 
     }
     
+    if(rightWheelOutput > maxOutput){
+      rightWheelOutput = maxOutput; 
+    }
+
+    else if(rightWheelOutput < -maxOutput){
+      leftWheelOutput = -maxOutput; 
+    }
+
+
+    rightMotorFront.set(rightWheelOutput);
+    leftMotorFront.set(leftWheelOutput);
   }
+
+  // public void goReverse(double driveReverseSetPoint) {
+    
+    
+  //   gyroSetpoint = navxAutonomousPosition;
+  //   navxYawReading = navx.getYaw();
+
+  //   // get encoder readings and convert them to desired units
+  //   rightFrontEncoderPosition = (leftFrontEncoder.getPosition() / var.ticksPerFoot);
+  //   leftFrontEncoderPosition = (rightFrontEncoder.getPosition() / var.ticksPerFoot);
+
+  //   rightFrontEncoderPosition
+  //   distanceTravelled = (rightFrontEncoderPosition + leftFrontEncoderPosition) / 2;
+
+  //   double driveSpeed = autonDrivePIDControllers.calculate(distanceTravelled, driveReverseSetPoint); 
+  //   double gryoSpeed = gryoDrivePIDControllers.calculate(navxYawReading, gyroSetpoint); 
+
+  //   rightMotorFront.set(-(driveSpeed + gryoSpeed));
+  //   leftMotorFront.set(-(driveSpeed - gryoSpeed));
+
+  //   if(Math.abs(distanceTravelled - driveReverseSetPoint) < 0.1){
+  //     SmartDashboard.putString("stop status", "should stop now");       
+  //     autonStage++;
+  //     autonDrivePIDControllers.reset();
+  //     gryoDrivePIDControllers.reset(); 
+  //   }
+    
+  // }
 
   public void turn(double targetGyroValue){
     double gyroPosition = navx.getAngle(); 
